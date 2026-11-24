@@ -1,0 +1,48 @@
+name: Deploy Clipper AI Studio
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Unzip project
+        run: for f in *.zip; do unzip -oq "$f"; done
+      - name: Install
+        working-directory: clipper-ai-studio
+        run: npm install --no-audit --legacy-peer-deps
+      - name: Tests
+        working-directory: clipper-ai-studio
+        run: npm test
+      - name: Build
+        working-directory: clipper-ai-studio/apps/web
+        run: npx vite build
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: clipper-ai-studio/apps/web/dist
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
